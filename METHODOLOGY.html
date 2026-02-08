@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estimating Freight Commodity Flows at Sand Island Container Terminal</title>
+<style>
+  :root {
+    --bg-main: #ffffff;
+    --bg-sidebar: #f8fafc;
+    --text-main: #1f2933;
+    --text-heading: #0f172a;
+    --text-muted: #64748b;
+    --text-link: #475569;
+    --link-active: #0f62fe;
+    --border-color: #e2e8f0;
+    --code-bg: #f3f4f6;
+    --note-bg: #eef2ff;
+    --note-border: #6366f1;
+  }
+
+  [data-theme="dark"] {
+    --bg-main: #0f172a;
+    --bg-sidebar: #1e293b;
+    --text-main: #cbd5e1;
+    --text-heading: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-link: #94a3b8;
+    --link-active: #3b82f6;
+    --border-color: #334155;
+    --code-bg: #1e293b;
+    --note-bg: #1e1b4b;
+    --note-border: #818cf8;
+  }
+
+  body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; line-height: 1.6; color: var(--text-main); background: var(--bg-main); display: flex; transition: background 0.3s, color 0.3s; }
+  .sidebar { width: 260px; height: 100vh; position: sticky; top: 0; background: var(--bg-sidebar); border-right: 1px solid var(--border-color); padding: 2rem 1.5rem; overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; }
+  .content { flex: 1; padding: 2rem 3rem 80vh 3rem; max-width: 900px; margin: 0 auto; box-sizing: border-box; }
+  h1, h2, h3 { color: var(--text-heading); }
+  h1 { margin-top: 0; font-size: 1.85rem; }
+  h2 { margin-top: 2.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; font-size: 1.5rem; }
+  .toc-title { font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; margin-bottom: 1rem; }
+  .toc-list { list-style: none; padding: 0; margin: 0; flex-grow: 1; }
+  .toc-list li { margin: 0.25rem 0; }
+  .toc-list a { color: var(--text-link); font-size: 0.9rem; text-decoration: none; display: block; padding: 0.35rem 0.75rem; border-radius: 6px; transition: all 0.2s; }
+  .toc-list a:hover { color: var(--link-active); background: var(--code-bg); }
+  .toc-list a.active { color: var(--link-active); background: var(--code-bg); font-weight: 600; }
+
+  .theme-toggle { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; background: none; border-left: none; border-right: none; border-bottom: none; width: 100%; text-align: left; }
+  .theme-toggle:hover { color: var(--link-active); }
+  .theme-toggle svg { width: 18px; height: 18px; fill: currentColor; }
+
+  code { background: var(--code-bg); padding: 0.1rem 0.25rem; border-radius: 4px; color: var(--text-heading); }
+  pre { background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; border: 1px solid var(--border-color); }
+  ul { padding-left: 1.25rem; }
+  li { margin: 0.35rem 0; }
+  a { color: var(--link-active); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .note { background: var(--note-bg); border-left: 4px solid var(--note-border); padding: 0.75rem 1rem; border-radius: 6px; margin: 1.5rem 0; }
+  .note strong { color: var(--text-heading); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; }
+  th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+  th { background: var(--code-bg); font-weight: 600; color: var(--text-heading); }
+  tr:nth-child(even) { background: var(--bg-sidebar); }
+</style>
+</head>
+<body>
+<nav class="sidebar">
+  <div class="toc-title">Table of Contents</div>
+  <ul class="toc-list">
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#data-sources">Data Sources</a></li>
+    <li><a href="#step-1-pier-operations-data-collection">Step 1: Pier Operations</a></li>
+    <li><a href="#step-2-cargo-type-definitions">Step 2: Cargo Types</a></li>
+    <li><a href="#step-3-commodity-mapping">Step 3: Commodity Mapping</a></li>
+    <li><a href="#step-4-automated-processing-script">Step 4: Processing Script</a></li>
+    <li><a href="#step-5-sict-pier-analysis">Step 5: SICT Analysis</a></li>
+    <li><a href="#step-6-results-analysis">Step 6: Results Analysis</a></li>
+  </ul>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+    <svg viewBox="0 0 24 24" id="moon-icon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    <svg viewBox="0 0 24 24" id="sun-icon" style="display:none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+    <span id="theme-text">Dark Mode</span>
+  </button>
+</nav>
+
+<main class="content">
+<h1>Estimating Freight Commodity Flows at Sand Island Container Terminal</h1>
+
+<h2 id="overview">Overview</h2>
+
+<h3>Purpose</h3>
+
+<p>The primary goal of this analysis is to estimate the types and volumes of freight commodities that arrive at the Sand Island Container Terminal (SICT) via water for the year 2024, and are subsequently transported off the island via the Sand Island Access Road bridge. This information supports transportation planning and infrastructure assessment for the Sand Island corridor.</p>
+
+<h3>Data Challenges</h3>
+
+<p>Estimating commodity-level freight flows at SICT presents several challenges:</p>
+
+<ol>
+<li><strong>No publicly available SICT commodity data:</strong> There is no publicly available dataset that provides a detailed breakdown of commodities flowing into the Sand Island Container Terminal specifically.</li>
+<li><strong>FAF data covers broader geography:</strong> The Freight Analysis Framework (FAF) provides commodity-level freight flow data, but only at the regional level for "Honolulu HI." SICT (piers 51, 52, 53) is part of Honolulu Harbor, but FAF does not distinguish between individual piers or terminals within the region.</li>
+<li><strong>Need to disaggregate regional data:</strong> This study uses multiple data sources to estimate what portion of the FAF regional freight flows can be attributed specifically to SICT operations.</li>
+<li><strong>Limited actual SICT data:</strong> We obtained wharfage data directly from SICT officials, which provides a high-level overview of shipment inflows for the period July 2024 through June 2025 (FY2025). However, this data lacks the detailed commodity breakdown available in FAF, and does not cover the full calendar year 2024.</li>
+<li><strong>Capacity-based pier distribution:</strong> No data source provides actual commodity flows by individual pier. To distribute regional commodity totals to specific piers, this study uses pier-specific annual capacity data from the Honolulu Harbor 2050 Master Plan as a proxy for actual throughput. Each pier's share of total harbor capacity for a given cargo type is assumed to reflect its share of actual freight flows. While this is a reasonable approximation, actual utilization rates may vary from designed capacities.</li>
+</ol>
+
+<h3>Temporal Assumptions</h3>
+
+<ul>
+<li><strong>FAF reference year:</strong> The FAF 5.7.1 dataset provides freight flow estimates for calendar year 2024.</li>
+<li><strong>SICT wharfage data period:</strong> The actual port data covers July 1, 2024 through June 30, 2025 (fiscal year 2025).</li>
+<li><strong>Assumption:</strong> Since the wharfage data represents a complete one-year period, we assume it is representative of calendar year 2024 freight volumes for calibration purposes. This assumption enables direct comparison between FAF model estimates and actual port throughput.</li>
+</ul>
+
+<h3>Approach</h3>
+
+<p>This document explains the methodology used to create the <strong>deliverable output sheets used for final reporting</strong>—<code>Honolulu_Piers</code>, <code>SICT_Piers_FAF</code>, and <code>SICT_Piers_byPortTons</code>—in the <code>FAF_Hawaii_Region_2024.xlsx</code> file (located at <code>Processed_Data/FAF_Hawaii_Region_2024.xlsx</code>). <code>Honolulu_Piers</code> provides a pier-level distribution of water-based inbound freight into Honolulu Harbor, and the SICT analysis sheets provide calibrated estimates for the Sand Island Container Terminal piers (51, 52, 53) using actual port wharfage data. Other workbook tabs are intermediate/QC outputs for internal review and are not required for final reporting.</p>
+
+<p><strong>Important Note:</strong> The final dataset includes only water-based freight flows into Honolulu Harbor. All inbound cargo at SICT piers must exit Sand Island via the bridge, making these estimates directly applicable to bridge traffic analysis.</p>
+
+<p><strong>Project Location:</strong></p>
+<pre><code>&lt;project root&gt;</code></pre>
+
+<p>All file paths referenced in this document are relative to the project root directory.</p>
+
+<hr>
+
+<h2 id="data-sources">Data Sources</h2>
+
+<p>The analysis relies on three primary data sources:</p>
+
+<h3>1. FAF 5.7.1 Regional Data</h3>
+<ul>
+<li><strong>File:</strong> <code>Raw_Data\FAF_5.7.1_Regional\FAF5.7.1.csv</code></li>
+<li><strong>Description:</strong> FAF version 5.7.1 regional database for 2017-2024 with forecasts up to 2050 (mid-range estimates only)</li>
+<li><strong>Provider:</strong> U.S. Department of Transportation, Bureau of Transportation Statistics</li>
+<li><strong>Content:</strong> Domestic and international freight flows between FAF regions, including:
+<ul>
+<li>Origin and destination regions</li>
+<li>Commodity types (SCTG2 classification)</li>
+<li>Transportation modes</li>
+<li>Tonnage and value projections for 2024</li>
+</ul></li>
+<li><strong>Use in Analysis:</strong> Source of freight flow volumes and commodity distributions for Hawaii region</li>
+</ul>
+
+<h3>2. Honolulu Harbor 2050 Master Plan</h3>
+<ul>
+<li><strong>File:</strong> <code>Ref_Documents\Honolulu_Harbor_2050_Master_Plan.pdf</code></li>
+<li><strong>Description:</strong> Long-range planning document for Honolulu Harbor infrastructure and operations</li>
+<li><strong>Provider:</strong> Hawaii Department of Transportation, Harbors Division</li>
+<li><strong>Content:</strong>
+<ul>
+<li>Individual pier operational characteristics</li>
+<li>Cargo type handling capabilities by pier</li>
+<li>Annual throughput capacities by cargo type</li>
+</ul></li>
+<li><strong>Use in Analysis:</strong> Source of pier-specific capacity data and cargo type definitions used to distribute regional freight flows to individual piers</li>
+</ul>
+
+<h3>3. SICT Wharfage Data (July 2024 to June 2025)</h3>
+<ul>
+<li><strong>File:</strong> <code>Ref_Documents\SICT-wharfage-data--Jul24-to-Jun25.pdf</code></li>
+<li><strong>Description:</strong> Schedule of cargo shipped through the Sand Island Container Terminal (SICT) by cargo operator, excluding transshipments</li>
+<li><strong>Provider:</strong> Hawaii Department of Transportation, Harbors Division (DOT-H)</li>
+<li><strong>Data Basis:</strong> Cash basis data obtained from wharfage self-reports submitted during July 1, 2024 through June 30, 2025 (FY2025)</li>
+<li><strong>Content:</strong>
+<ul>
+<li>Inbound and outbound cargo tonnage by cargo category</li>
+<li>Categories include: Vehicles, Automobiles (containerized), General Merchandise, Explosives, and Shipping Devices (containers)</li>
+<li>Tonnage by shipping operator (Matson, Pasha Hawaii, Waldron Norton Lilly)</li>
+</ul></li>
+<li><strong>Use in Analysis:</strong> Source of actual SICT throughput totals used to calibrate FAF model estimates in Step 5</li>
+<li><strong>Processed Data:</strong> <code>Processed_Data\SICT-wharfage-data--Jul24-to-Jun25.xlsx</code> contains the summarized tonnage data</li>
+</ul>
+
+<hr>
+
+<h2 id="step-1-pier-operations-data-collection">Step 1: Pier Operations Data Collection (Manual)</h2>
+
+<h3>Source Document</h3>
+<p>The pier operations data was manually extracted from the <strong>Honolulu Harbor 2050 Master Plan</strong> PDF document, located at <code>Ref_Documents/Honolulu_Harbor_2050_Master_Plan.pdf</code>.</p>
+
+<h3>Output File</h3>
+<p>The extracted data was compiled into the <strong>Current_v2</strong> sheet in <code>Processed_Data/Honolulu Harbor Pier Operations and Cargo Inventory.xlsx</code>.</p>
+
+<div class="note">
+<strong>Note:</strong> The workbook also contains <strong>Current</strong> (original extraction) and <strong>Future</strong> (future scenario assumptions) sheets. The automated script uses the <strong>Current_v2</strong> sheet, which refines the original pier proportions to reflect that SICT piers (51, 52, 53) do not handle Liquid-Bulk cargo.
+</div>
+
+<h3>Columns Extracted from Master Plan</h3>
+
+<p>The following columns were directly extracted from the Honolulu Harbor 2050 Master Plan:</p>
+
+<table>
+<thead>
+<tr>
+<th>Column Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Pier</strong></td>
+<td>Pier identification (e.g., Pier 1, Pier 2, Sand Island)</td>
+</tr>
+<tr>
+<td><strong>Cargo Types</strong></td>
+<td>Types of cargo handled at each pier</td>
+</tr>
+<tr>
+<td><strong>Container Annual Capacity (TEUs)</strong></td>
+<td>Annual capacity for containers in Twenty-foot Equivalent Units</td>
+</tr>
+<tr>
+<td><strong>Automobiles (RO/RO) Annual Capacity</strong></td>
+<td>Annual capacity for automobiles/vehicles</td>
+</tr>
+<tr>
+<td><strong>Break-Bulk Annual Capacity (Ton)</strong></td>
+<td>Annual capacity for break-bulk cargo in tons</td>
+</tr>
+<tr>
+<td><strong>Liquid-Bulk Annual Capacity (Bbls)</strong></td>
+<td>Annual capacity for liquid-bulk in barrels</td>
+</tr>
+<tr>
+<td><strong>Dry-Bulk Annual Capacity (Tons)</strong></td>
+<td>Annual capacity for dry-bulk cargo in tons</td>
+</tr>
+</tbody>
+</table>
+
+<h3>Columns Derived from Annual Capacities</h3>
+
+<p>Using the annual capacity values extracted from the Master Plan, the following proportion columns were calculated to represent each pier's share of total harbor capacity for each cargo type:</p>
+
+<table>
+<thead>
+<tr>
+<th>Column Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Container Proportion</strong></td>
+<td>Pier's share of total container capacity</td>
+</tr>
+<tr>
+<td><strong>RO/RO Proportion</strong></td>
+<td>Pier's share of total RO/RO capacity</td>
+</tr>
+<tr>
+<td><strong>Break-Bulk Proportion</strong></td>
+<td>Pier's share of total break-bulk capacity</td>
+</tr>
+<tr>
+<td><strong>Liquid-Bulk Proportion</strong></td>
+<td>Pier's share of total liquid-bulk capacity</td>
+</tr>
+<tr>
+<td><strong>Dry-Bulk Proportion</strong></td>
+<td>Pier's share of total dry-bulk capacity</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Calculation Method:</strong></p>
+<pre><code>Pier Proportion = Pier Annual Capacity / Total Harbor Annual Capacity (for each cargo type)</code></pre>
+
+<p>These proportions are used to distribute regional freight flows to individual piers based on their operational capacity.</p>
+
+<hr>
+
+<h2 id="step-2-cargo-type-definitions">Step 2: Cargo Type Definitions</h2>
+
+<h3>Source File</h3>
+<p><code>Processed_Data/Commodity_Dict.xlsx</code></p>
+
+<h3>Cargo_Type Sheet</h3>
+
+<p>The <strong>Cargo_Type</strong> sheet in the Commodity Dictionary provides definitions for the five major cargo type categories used in the analysis. These definitions were also derived from the <strong>Honolulu Harbor 2050 Master Plan</strong>.</p>
+
+<p>The five cargo types are:</p>
+
+<ol>
+<li><strong>Containers</strong> - Standardized shipping containers (TEUs)</li>
+<li><strong>RO/RO (Roll-on/Roll-off)</strong> - Vehicles and wheeled cargo</li>
+<li><strong>Break-Bulk</strong> - Non-containerized general cargo</li>
+<li><strong>Liquid-Bulk</strong> - Petroleum products, chemicals, and other liquids</li>
+<li><strong>Dry-Bulk</strong> - Coal, aggregates, grain, and other dry commodities</li>
+</ol>
+
+<p>These cargo type definitions establish the framework for mapping specific SCTG2 commodities to pier operational categories.</p>
+
+<hr>
+
+<h2 id="step-3-commodity-mapping">Step 3: Commodity Mapping (SCTG2 to Cargo Types)</h2>
+
+<h3>Source File</h3>
+<p><code>Processed_Data/Commodity_Dict.xlsx</code></p>
+
+<h3>Commodity_SCTG2 Sheet</h3>
+
+<p>The <strong>Commodity_SCTG2</strong> sheet maps Standard Classification of Transported Goods (SCTG2) commodity codes to the five cargo type categories defined in Step 2. This sheet includes both primary cargo type assignments and provisions for mixed-mode handling.</p>
+
+<p><strong>Mapping Structure:</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>SCTG_Commodity</th>
+<th>Primary_Cargo_Type</th>
+<th>Containers_Proportion</th>
+<th>Containers_Rational</th>
+<th>Alternative_Cargo_Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Live animals/fish</td>
+<td>Containers</td>
+<td>0.7</td>
+<td>High share in reefer/ventilated containers and specialized crates; remainder by air or specialized vessels.</td>
+<td>Break-Bulk</td>
+</tr>
+<tr>
+<td>Cereal grains</td>
+<td>Dry-Bulk</td>
+<td>0.05</td>
+<td>Elevator-to-bulk-carrier flows dominate; small identity-preserved/specialty volumes ship in containers.</td>
+<td>Containers</td>
+</tr>
+<tr>
+<td>Meat/seafood</td>
+<td>Containers</td>
+<td>0.95</td>
+<td>Cold-chain and hygiene requirements make reefer containers the norm; specialized reefer vessels are rare niche.</td>
+<td>Break-Bulk</td>
+</tr>
+<tr>
+<td>Milled grain prods.</td>
+<td>Containers</td>
+<td>0.9</td>
+<td>Flour/DDGs and processed grains typically bagged or tote-packed in boxes; some bulk flows remain.</td>
+<td>Dry-Bulk</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Column Definitions:</strong></p>
+
+<ul>
+<li><strong>SCTG2_Commodity</strong>: Standard Classification of Transported Goods (SCTG2) commodity description</li>
+<li><strong>Primary_Cargo_Type</strong>: The primary cargo handling method for this commodity (Containers, Break-Bulk, Dry-Bulk, Liquid-Bulk, or RO/RO)</li>
+<li><strong>Containers_Proportion</strong>: A value between 0.0 and 1.0 indicating what proportion of this commodity's tonnage is handled as containers
+<ul>
+<li><code>1.0</code> = 100% containerized (all tonnage uses container handling)</li>
+<li><code>0.0</code> = 0% containerized (all tonnage uses the primary cargo type handling)</li>
+<li>Values between 0 and 1 = Mixed handling (e.g., <code>0.7</code> means 70% in containers, 30% via alternative method)</li>
+</ul></li>
+<li><strong>Containers_Rational (Rationale)</strong>: Detailed explanation and justification for the containers proportion assignment. This column documents the specific reasoning, industry practices, physical characteristics, and expert judgment used to determine how each commodity is handled. The rationale provides critical context for understanding the proportion values and supports the analytical decisions made in the commodity mapping process. Refer to the actual spreadsheet (<code>Commodity_Dict.xlsx</code>, sheet <code>Commodity_SCTG2</code>) for the complete rationale text for each commodity.</li>
+<li><strong>Alternative_Cargo_Type</strong>: The cargo handling method used for the non-containerized portion when Containers_Proportion is between 0 and 1 (e.g., if 70% is containerized, this specifies how the remaining 30% is handled)</li>
+</ul>
+
+<p>This mapping enables the translation of FAF commodity data (which uses SCTG2 codes) into the cargo type categories that correspond to pier operational characteristics, while accounting for commodities that may be handled through multiple methods.</p>
+
+<p><strong>Key Mapping Logic:</strong></p>
+<ul>
+<li>Bulk commodities (grains, coal, aggregates) → Dry-Bulk or Liquid-Bulk (Containers_Proportion = 0.0)</li>
+<li>Fully manufactured goods and perishables → Containers (Containers_Proportion = 1.0)</li>
+<li>Vehicles and machinery → RO/RO (Containers_Proportion = 0.0)</li>
+<li>Oversized or non-containerized goods → Break-Bulk (Containers_Proportion = 0.0)</li>
+<li>Mixed-mode commodities → Primary_Cargo_Type with partial containerization (0 &lt; Containers_Proportion &lt; 1.0, with Alternative_Cargo_Type specified)</li>
+</ul>
+
+<hr>
+
+<h2 id="step-4-automated-processing-script">Step 4: Automated Processing Script</h2>
+
+<h3>Script File</h3>
+<p><code>Script/process_faf_Region.py</code></p>
+
+<h3>Purpose</h3>
+<p>The Python script automates the process of combining FAF regional freight data with pier operational characteristics to generate the <code>Honolulu_Piers</code> deliverable and the <strong>two SICT deliverable output sheets</strong>.</p>
+
+<h3>Processing Workflow</h3>
+
+<p>The script performs the following operations to create the <code>Honolulu_Piers</code> sheet (deliverable and also used to derive the SICT outputs):</p>
+
+<h4>4.1 Load and Filter FAF Data</h4>
+<ul>
+<li>Loads FAF 5.7.1 regional data from <code>Raw_Data/FAF_5.7.1_Regional/FAF5.7.1.csv</code></li>
+<li>Filters for Hawaii-related flows (Honolulu HI and Rest of HI)</li>
+<li>Replaces numeric codes with human-readable descriptions using metadata</li>
+<li>Converts FAF units to project “base” units:
+<ul>
+<li><code>tons_2024</code>: FAF is in <em>thousand tons</em> → multiplied by 1,000 to get <em>tons</em></li>
+<li><code>current_value_2024</code>: FAF is in <em>million dollars</em> → multiplied by 1,000,000 to get <em>dollars</em></li>
+</ul></li>
+<li>Removes records where both <code>tons_2024</code> and <code>current_value_2024</code> are zero (cleanup step to reduce noise before Honolulu filtering)</li>
+</ul>
+
+<h4>4.2 Filter Honolulu Water Flows</h4>
+
+<p>The script applies specific filters to isolate water-based freight arriving at Honolulu Harbor. This critical step ensures that only freight physically arriving by water at Honolulu Harbor piers is included in the analysis, excluding air freight, truck freight, and intra-Honolulu movements.</p>
+
+<p><strong>Filtering Logic:</strong></p>
+
+<p>The filter combines two conditions that must both be true:</p>
+<ol>
+<li><strong>Destination must be Honolulu HI</strong> - Only freight destined for Honolulu</li>
+<li><strong>Must be either a Domestic Water flow OR an Import Water flow</strong> (as defined below)</li>
+</ol>
+
+<p><strong>Domestic Flows (within the United States):</strong></p>
+
+<p>Criteria for domestic freight:</p>
+<ul>
+<li><code>trade_type</code> = "Domestic flows"</li>
+<li><code>dms_dest</code> = "Honolulu HI" (destination is Honolulu)</li>
+<li><code>dms_orig</code> ≠ "Honolulu HI" (origin is NOT Honolulu - excludes local movements)</li>
+<li><code>dms_mode</code> = "Water" (transported by water/ship)</li>
+</ul>
+
+<p><em>Example:</em> Freight shipped by water from Los Angeles to Honolulu</p>
+
+<p><strong>Import Flows (from foreign countries):</strong></p>
+
+<p>Criteria for imported freight varies based on the origin location:</p>
+
+<p><em>Case 1: Import arrives directly at Honolulu from foreign origin</em></p>
+<ul>
+<li><code>trade_type</code> = "Import flows"</li>
+<li><code>dms_orig</code> = "Honolulu HI" (Honolulu is the first domestic location)</li>
+<li><code>dms_dest</code> = "Honolulu HI" (destination is Honolulu)</li>
+<li><code>fr_inmode</code> = "Water" (mode of entry into the U.S. is by water)</li>
+</ul>
+
+<p><em>Example:</em> Container ship from Japan directly to Honolulu Harbor</p>
+
+<p><em>Case 2: Import arrives at another U.S. location first, then transported to Honolulu</em></p>
+<ul>
+<li><code>trade_type</code> = "Import flows"</li>
+<li><code>dms_orig</code> ≠ "Honolulu HI" (entered U.S. at a different location, e.g., Los Angeles)</li>
+<li><code>dms_dest</code> = "Honolulu HI" (final destination is Honolulu)</li>
+<li><code>dms_mode</code> = "Water" (domestic transport mode to Honolulu is by water)</li>
+</ul>
+
+<p><em>Example:</em> Goods imported through Los Angeles port, then shipped by water to Honolulu</p>
+
+<p><strong>Rationale:</strong></p>
+
+<p>This filtering approach ensures the dataset captures:</p>
+<ul>
+<li>✅ All waterborne domestic freight arriving at Honolulu from other U.S. locations</li>
+<li>✅ All international imports arriving directly at Honolulu by ship</li>
+<li>✅ All international imports that enter the U.S. elsewhere but are subsequently shipped to Honolulu by water</li>
+</ul>
+
+<h4>4.3 Create Honolulu Summary</h4>
+<p>The script aggregates the filtered data by:</p>
+<ul>
+<li>Destination (<code>dms_dest</code>)</li>
+<li>SCTG2 Commodity (<code>sctg2</code>)</li>
+</ul>
+
+<p>For each commodity, it sums:</p>
+<ul>
+<li><code>tons_2024</code> - Total tonnage</li>
+<li><code>current_value_2024</code> - Total freight value</li>
+</ul>
+
+<p>The script then merges cargo type information from the <strong>Commodity_SCTG2</strong> mapping (Step 3) to assign each SCTG2 commodity to its corresponding cargo type category, including:</p>
+<ul>
+<li><code>Primary_Cargo_Type</code> - The primary handling method</li>
+<li><code>Containers_Proportion</code> - The proportion handled as containers</li>
+<li><code>Alternative_Cargo_Type</code> - The alternative handling method for mixed-mode commodities</li>
+</ul>
+
+<h4>4.4 Distribute to Piers</h4>
+<p>The final step distributes the commodity-level totals to individual piers using the proportions calculated in Step 1. The distribution logic accounts for commodities that may be handled through multiple cargo types.</p>
+
+<p><strong>Distribution Logic:</strong></p>
+
+<p>The script handles three scenarios based on the <code>Containers_Proportion</code> value, where <code>Containers_Proportion</code> is always interpreted as the <strong>containerized share</strong> of the commodity’s tonnage/value:</p>
+
+<p><strong>Scenario 1: Fully Containerized</strong> (<code>Containers_Proportion</code> = 1.0)</p>
+<pre><code>For each commodity with Containers_Proportion = 1.0:
+    cargo_type = &quot;Containers&quot;
+
+    For each pier:
+        proportion = pier's Container Proportion
+
+        If proportion &gt; 0:
+            pier_tons = commodity_tons × proportion
+            pier_value = commodity_value × proportion</code></pre>
+
+<p><strong>Scenario 2: Fully Non-Containerized</strong> (<code>Containers_Proportion</code> = 0.0)</p>
+<pre><code>For each commodity with Containers_Proportion = 0.0:
+    non_container_cargo_type =
+        Primary_Cargo_Type, if Primary_Cargo_Type != &quot;Containers&quot;
+        otherwise Alternative_Cargo_Type
+
+    For each pier:
+        proportion = pier's Proportion for non_container_cargo_type
+
+        If proportion &gt; 0:
+            pier_tons = commodity_tons × proportion
+            pier_value = commodity_value × proportion</code></pre>
+
+<p><strong>Scenario 3: Mixed-Mode Handling</strong> (0 &lt; <code>Containers_Proportion</code> &lt; 1.0)</p>
+<pre><code>For each commodity with 0 &lt; Containers_Proportion &lt; 1.0:
+    # Part 1: Containerized share
+    For each pier:
+        proportion = pier's Container Proportion
+        If proportion &gt; 0:
+            pier_tons = commodity_tons × Containers_Proportion × proportion
+            pier_value = commodity_value × Containers_Proportion × proportion
+
+    # Part 2: Non-containerized share
+    non_container_cargo_type =
+        Primary_Cargo_Type, if Primary_Cargo_Type != &quot;Containers&quot;
+        otherwise Alternative_Cargo_Type
+
+    For each pier:
+        proportion = pier's Proportion for non_container_cargo_type
+        If proportion &gt; 0:
+            pier_tons = commodity_tons × (1.0 - Containers_Proportion) × proportion
+            pier_value = commodity_value × (1.0 - Containers_Proportion) × proportion</code></pre>
+
+<p><strong>Example:</strong></p>
+
+<p>If "Milled grain prods." has:</p>
+<ul>
+<li>Total tonnage: 10,000 tons</li>
+<li><code>Primary_Cargo_Type</code>: Containers</li>
+<li><code>Containers_Proportion</code>: 0.7</li>
+<li><code>Alternative_Cargo_Type</code>: Dry-Bulk</li>
+</ul>
+
+<p>The distribution would be:</p>
+<ul>
+<li>7,000 tons (70%) distributed to piers based on their Container handling proportions</li>
+<li>3,000 tons (30%) distributed to piers based on their Dry-Bulk handling proportions</li>
+</ul>
+
+<p><strong>Output Columns:</strong></p>
+<ul>
+<li><code>Pier</code> - Pier name</li>
+<li><code>SCTG2_Commodity</code> - SCTG2 commodity description</li>
+<li><code>cargo_type</code> - Cargo type category used for this distribution record (may be Primary_Cargo_Type or Alternative_Cargo_Type)</li>
+<li><code>tons_2024</code> - Distributed tonnage for 2024</li>
+<li><code>current_value_2024</code> - Distributed freight value for 2024</li>
+</ul>
+
+<p><strong>Note:</strong> For mixed-mode commodities, each commodity will generate multiple records in the output—one set of pier distributions for the primary cargo type and another set for the alternative cargo type.</p>
+
+<hr>
+
+<h2 id="step-5-sict-pier-analysis">Step 5: SICT Pier Analysis</h2>
+
+<h3>5.1 Purpose</h3>
+
+<p>The SICT (Sand Island Container Terminal) analysis reconciles FAF model estimates with actual port shipment data for piers 51, 52, and 53. This step produces two output sheets that provide different perspectives on commodity flows through the SICT piers.</p>
+
+<h3>5.2 Additional Data Source</h3>
+
+<p><strong>SICT Wharfage Data (July 2024 to June 2025)</strong></p>
+
+<ul>
+<li><strong>File:</strong> <code>Ref_Documents/SICT-wharfage-data--Jul24-to-Jun25.pdf</code></li>
+<li><strong>Description:</strong> Schedule of cargo shipped through the Sand Island Container Terminal (SICT) by cargo operator, excluding transshipments</li>
+<li><strong>Provider:</strong> Hawaii Department of Transportation, Harbors Division (DOT-H)</li>
+<li><strong>Data Basis:</strong> Cash basis data obtained from wharfage self-reports submitted during July 1, 2024 through June 30, 2025 (FY2025)</li>
+<li><strong>Content:</strong>
+<ul>
+<li>Inbound and outbound cargo tonnage by cargo category</li>
+<li>Categories include: Vehicles, Automobiles (containerized), General Merchandise, Explosives, and Shipping Devices (containers)</li>
+<li>Tonnage by shipping operator (Matson, Pasha Hawaii, Waldron Norton Lilly)</li>
+</ul></li>
+<li><strong>Use in Analysis:</strong> Source of actual SICT throughput totals used to calibrate FAF model estimates</li>
+<li><strong>Processed Data:</strong> <code>Processed_Data/SICT-wharfage-data--Jul24-to-Jun25.xlsx</code> contains two sheets:
+<ul>
+<li><strong>shipment_data:</strong> Raw inbound cargo data with manually assigned Type classifications</li>
+<li><strong>shipment_summary:</strong> Aggregated inbound tonnage by SICT-Type (Vehicles / Cargo Non Vehicles) and Containerized status (Yes / No)</li>
+</ul></li>
+</ul>
+
+<h4>Processing SICT Wharfage Data: From shipment_data to shipment_summary</h4>
+
+<p>The <strong>shipment_data</strong> sheet contains the raw inbound cargo records extracted from the PDF, filtered for <code>Direction = "IN"</code> only. A <strong>Type</strong> column was manually added to classify each cargo description into one of four categories based on two dimensions:</p>
+
+<ol>
+<li><strong>SICT-Type:</strong> Whether the cargo is "Vehicles" or "Cargo Non Vehicles"</li>
+<li><strong>Containerized:</strong> Whether the cargo is shipped in containers ("Yes") or not ("No")</li>
+</ol>
+
+<p><strong>Type Classification Rules:</strong></p>
+
+<p>The following mapping was applied to assign the Type column based on the cargo description codes:</p>
+
+<table>
+<thead>
+<tr>
+<th>Description Code</th>
+<th>Description</th>
+<th>Assigned Type</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>60-01</td>
+<td>Automobile in container or frame each</td>
+<td>Vehicles Containerized</td>
+<td>Automobiles shipped in containers or frames</td>
+</tr>
+<tr>
+<td>60-44</td>
+<td>Vehicles ton</td>
+<td>Vehicles Non Containerized</td>
+<td>Vehicles shipped via RO/RO (roll-on/roll-off)</td>
+</tr>
+<tr>
+<td>60-73</td>
+<td>Shipping Device Loaded 45ft. each</td>
+<td>Cargo Containerized</td>
+<td>45-foot loaded containers</td>
+</tr>
+<tr>
+<td>60-74</td>
+<td>Shipping Device Loaded 40ft. each</td>
+<td>Cargo Containerized</td>
+<td>40-foot loaded containers</td>
+</tr>
+<tr>
+<td>60-77</td>
+<td>Shipping Device Loaded 20ft. each</td>
+<td>Cargo Containerized</td>
+<td>20-foot loaded containers</td>
+</tr>
+<tr>
+<td>60-22</td>
+<td>General Merchandise (NOS) ton</td>
+<td>Cargo Non Containerized</td>
+<td>Non-containerized general merchandise</td>
+</tr>
+<tr>
+<td>60-19</td>
+<td>Explosives ton</td>
+<td>Cargo Non Containerized</td>
+<td>See note below</td>
+</tr>
+</tbody>
+</table>
+
+<div class="note">
+<strong>Note on Explosives Classification:</strong> The "60-19 Explosives ton" category cannot be directly mapped to any of the SCTG2 commodities in the FAF dataset. Since explosives represent a specialized cargo type that does not fit neatly into the standard commodity classifications, they were included as part of general cargo under "Cargo Non Containerized." This ensures all reported tonnage is accounted for in the analysis.
+</div>
+
+<p><strong>Identifying Non-Containerized Shipments:</strong></p>
+
+<p>The "TEU Calculated" column in the source data provides a key indicator for containerization status:</p>
+<ul>
+<li><strong>Empty/NaN values</strong> indicate that the cargo is <strong>not containerized</strong> (applies to: Explosives, General Merchandise NOS, and Vehicles ton)</li>
+<li><strong>Numeric values</strong> indicate the cargo is <strong>containerized</strong> and shows the calculated TEU count</li>
+</ul>
+
+<p><strong>Aggregation to shipment_summary:</strong></p>
+
+<p>The <strong>shipment_summary</strong> sheet was created by aggregating the shipment_data records by the two classification dimensions:</p>
+
+<pre><code>shipment_summary = shipment_data.groupby(['SICT-Type', 'Containerized'])['Ton'].sum()</code></pre>
+
+<p><strong>Resulting Summary (Inbound Tonnage):</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>SICT-Type</th>
+<th>Containerized</th>
+<th>Ton</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cargo Non Vehicles</td>
+<td>Yes</td>
+<td>3,958,177</td>
+</tr>
+<tr>
+<td>Cargo Non Vehicles</td>
+<td>No</td>
+<td>8,130</td>
+</tr>
+<tr>
+<td>Vehicles</td>
+<td>No</td>
+<td>90,742</td>
+</tr>
+<tr>
+<td>Vehicles</td>
+<td>Yes</td>
+<td>27,184</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td></td>
+<td><strong>4,084,234</strong></td>
+</tr>
+</tbody>
+</table>
+
+<p>This summary provides the target tonnage values used to calibrate the FAF model estimates in the subsequent analysis steps.</p>
+
+<h3>5.3 Rationale for SICT Calibration</h3>
+
+<p>The FAF (Freight Analysis Framework) model provides valuable commodity-level detail for freight flows, including the distribution across SCTG2 commodity categories. However, when comparing FAF estimates for the SICT piers to actual port data, we observed significant discrepancies:</p>
+
+<ul>
+<li><strong>FAF Model Estimate:</strong> ~941,000 tons total for SICT piers (51, 52, 53)</li>
+<li><strong>Actual Port Data (PDF):</strong> ~4,084,000 tons total inbound cargo</li>
+</ul>
+
+<p>The PDF data from SICT authorities provides actual wharfage records but lacks detailed commodity breakdowns. The cargo categories in the PDF are limited to broad groupings (Vehicles, General Merchandise, Shipping Devices) rather than the 42 SCTG2 commodity categories available in FAF.</p>
+
+<p>To leverage the strengths of both data sources, we use the FAF model for commodity-level proportions while scaling the totals to match actual port throughput data. This approach:</p>
+
+<ol>
+<li>Preserves the relative distribution of specific commodities from FAF (which SICT data cannot provide)</li>
+<li>Calibrates total tonnage to match observed port throughput (which FAF underestimates)</li>
+<li>Maintains consistency with the categorical breakdowns available in the SICT data</li>
+</ol>
+
+<h3>5.4 Liquid-Bulk at SICT Piers</h3>
+
+<p>SICT piers (51, 52, 53) do not handle Liquid-Bulk cargo. Liquid-Bulk operations in Honolulu Harbor (petroleum products, chemicals, and other liquids) are handled at other facilities, primarily Sand Island fuel terminals and Pier 30. The <code>Current_v2</code> pier proportions sheet reflects this by assigning a Liquid-Bulk Proportion of 0% to SICT piers.</p>
+
+<p>As a result, the SICT calibration analysis does not include Liquid-Bulk cargo, and no separate liquid-bulk estimation model is needed. Petroleum products are typically transported via pipelines from Sand Island to the rest of Honolulu rather than by truck over the Sand Island Access Road bridge, making them not relevant to the bridge traffic analysis.</p>
+
+<h3>5.5 Classification Rules</h3>
+
+<p>The SICT analysis uses the following classification rules to map FAF commodity data to the categories available in the SICT wharfage reports:</p>
+
+<p><strong>SICT-Type Classification:</strong></p>
+<ul>
+<li><strong>Vehicles:</strong> SCTG2 commodities "Motorized vehicles" and "Transport equip."</li>
+<li><strong>Cargo Non Vehicles:</strong> All other SCTG2 commodities</li>
+</ul>
+
+<p><strong>Containerized Classification:</strong></p>
+<ul>
+<li><strong>Yes:</strong> When <code>cargo_type</code> = "Containers"</li>
+<li><strong>No:</strong> When <code>cargo_type</code> ≠ "Containers" (i.e., Break-Bulk, RO/RO, or Dry-Bulk)</li>
+</ul>
+
+<h3>5.6 Deliverable Output Sheets (3 sheets)</h3>
+
+<p>For final reporting, the script produces the <code>Honolulu_Piers</code> sheet plus two SICT output sheets in <code>FAF_Hawaii_Region_2024.xlsx</code> (other tabs are intermediate/QC outputs for internal review):</p>
+
+<h4>Honolulu_Piers</h4>
+
+<p>Pier-level distribution of water-based inbound freight into Honolulu Harbor, allocated from commodity totals using each pier's cargo-type capacity proportions (Step 1). This sheet is also the source dataset used to filter and calibrate the SICT outputs.</p>
+
+<p><strong>Columns:</strong></p>
+<ul>
+<li><code>Pier</code></li>
+<li><code>SCTG2_Commodity</code></li>
+<li><code>cargo_type</code></li>
+<li><code>tons_2024</code></li>
+<li><code>current_value_2024</code></li>
+</ul>
+
+<h4>SICT_Piers_FAF</h4>
+
+<p>Raw FAF model data filtered for SICT piers (Pier = "51, 52, 53"). Provides baseline for comparison and shows the original commodity distribution before calibration.</p>
+
+<p><strong>Columns:</strong></p>
+<ul>
+<li><code>Pier</code> - Always "51, 52, 53"</li>
+<li><code>SCTG2_Commodity</code> - SCTG2 commodity description</li>
+<li><code>cargo_type</code> - Cargo type category</li>
+<li><code>tons_2024</code> - Original FAF tonnage</li>
+<li><code>current_value_2024</code> - Original FAF value</li>
+</ul>
+
+<h4>SICT_Piers_byPortTons</h4>
+
+<p>FAF data scaled to match actual port shipment tonnage from the SICT wharfage data.</p>
+
+<p><strong>Scaling Approach:</strong></p>
+<ol>
+<li>Commodities are categorized as "Vehicles" or "Cargo Non Vehicles" based on SCTG2 commodity</li>
+<li>Commodities are categorized as "Containerized" (Yes/No) based on cargo type</li>
+<li>For each (SICT_Type, Containerized) group:
+<ul>
+<li>Calculate <code>tonnage_scale = target_tons / current_tons</code></li>
+<li>Apply the same scaling factor to both tonnage and dollar values</li>
+</ul></li>
+<li>Preserves relative commodity proportions within each category</li>
+</ol>
+
+<p><strong>Columns:</strong></p>
+<ul>
+<li><code>Pier</code>, <code>SCTG2_Commodity</code>, <code>cargo_type</code>, <code>tons_2024</code>, <code>current_value_2024</code> (original values)</li>
+<li><code>SICT_Type</code> - "Vehicles" or "Cargo Non Vehicles"</li>
+<li><code>Containerized</code> - "Yes" or "No"</li>
+<li><code>tonnage_scale</code> - Scaling factor applied</li>
+<li><code>scaled_tons</code> - Tonnage after scaling</li>
+<li><code>scaled_value</code> - Value after scaling (using same tonnage scale factor)</li>
+</ul>
+
+<hr>
+
+<h2 id="step-6-results-analysis">Step 6: Results Analysis and Summary Statistics</h2>
+
+<h3>6.1 Purpose</h3>
+
+<p>After generating the deliverable output sheets, a separate analysis script produces summary statistics and key findings to support reporting and presentation. This step quantifies SICT's role within Honolulu Harbor and identifies the most significant commodity flows.</p>
+
+<h3>6.2 Analysis Script</h3>
+
+<p><strong>Script File:</strong> <code>Script/analyze_sict_results.py</code></p>
+
+<p><strong>Output File:</strong> <code>Processed_Data/SICT_Analysis_Results.xlsx</code></p>
+
+<h3>6.3 Analysis Components</h3>
+
+<p>The script performs three main analyses:</p>
+
+<h4>6.3.1 Pier Capacity Proportions</h4>
+
+<p><strong>Output Sheet:</strong> <code>Pier_Proportions</code></p>
+
+<p>Extracts and displays the pier capacity proportions from the Honolulu Harbor Pier Operations file (Step 1). This provides a reference for understanding how freight is distributed across piers based on their operational capacity.</p>
+
+<p><strong>Columns:</strong></p>
+<ul>
+<li><code>Pier</code> - Pier identification</li>
+<li><code>Container Proportion</code> - Share of total container capacity</li>
+<li><code>RO/RO Proportion</code> - Share of total RO/RO capacity</li>
+<li><code>Break-Bulk Proportion</code> - Share of total break-bulk capacity</li>
+<li><code>Liquid-Bulk Proportion</code> - Share of total liquid-bulk capacity</li>
+<li><code>Dry-Bulk Proportion</code> - Share of total dry-bulk capacity</li>
+</ul>
+
+<h4>6.3.2 SICT Share of Honolulu Harbor (Total)</h4>
+
+<p><strong>Output Sheet:</strong> <code>SICT_Share_Total</code></p>
+
+<p>Calculates SICT's overall share of Honolulu Harbor freight flows by comparing total tonnage and value for SICT piers (51, 52, 53) against all Honolulu Harbor piers. The calculation is <strong>scoped to only the cargo types that SICT actually handles</strong> — Containers, RO/RO, and Break-Bulk — so that the comparison is like-for-like. Liquid-Bulk and Dry-Bulk cargo, which SICT does not handle, are excluded from both the SICT and Honolulu totals.</p>
+
+<p><strong>Calculation:</strong></p>
+<pre><code># Filter Honolulu_Piers to only SICT cargo types (Containers, RO/RO, Break-Bulk)
+df_scoped = df_honolulu_piers[cargo_type in {&quot;Containers&quot;, &quot;RO/RO&quot;, &quot;Break-Bulk&quot;}]
+
+SICT_Share_Tons_Pct = (SICT_Total_Tons / Honolulu_Total_Tons) × 100   # both scoped
+SICT_Share_Value_Pct = (SICT_Total_Value / Honolulu_Total_Value) × 100 # both scoped</code></pre>
+
+<p><strong>Columns:</strong></p>
+<ul>
+<li><code>Honolulu_Total_Tons</code> - Total tonnage for all Honolulu Harbor piers (scoped to SICT cargo types)</li>
+<li><code>SICT_Total_Tons</code> - Total tonnage for SICT piers (51, 52, 53)</li>
+<li><code>SICT_Share_Tons_Pct</code> - SICT's percentage share of total tonnage</li>
+<li><code>Honolulu_Total_Value</code> - Total freight value for all Honolulu Harbor piers (scoped to SICT cargo types)</li>
+<li><code>SICT_Total_Value</code> - Total freight value for SICT piers</li>
+<li><code>SICT_Share_Value_Pct</code> - SICT's percentage share of total value</li>
+</ul>
+
+<p><strong>Use:</strong> Provides a like-for-like summary of SICT's importance to Honolulu Harbor for the cargo types it serves.</p>
+
+<h4>6.3.3 SICT Share by Commodity</h4>
+
+<p><strong>Output Sheet:</strong> <code>SICT_Share_by_Commodity</code></p>
+
+<p>Breaks down SICT's share of Honolulu Harbor by individual SCTG2 commodity, showing which commodities are concentrated at SICT versus distributed across other piers.</p>
+
+<p><strong>Calculation:</strong></p>
+<pre><code>For each SCTG2_Commodity:
+    SICT_Share_Tons_Pct = (SICT_Tons / Honolulu_Tons) × 100
+    SICT_Share_Value_Pct = (SICT_Value / Honolulu_Value) × 100</code></pre>
+
+<p><strong>Columns:</strong></p>
+<ul>
+<li><code>SCTG2_Commodity</code> - SCTG2 commodity description</li>
+<li><code>Honolulu_Tons</code> - Total tonnage for this commodity across all Honolulu Harbor piers</li>
+<li><code>SICT_Tons</code> - Tonnage for this commodity at SICT piers</li>
+<li><code>SICT_Share_Tons_Pct</code> - SICT's percentage share of this commodity's tonnage</li>
+<li><code>Honolulu_Value</code> - Total value for this commodity across all Honolulu Harbor piers</li>
+<li><code>SICT_Value</code> - Value for this commodity at SICT piers</li>
+<li><code>SICT_Share_Value_Pct</code> - SICT's percentage share of this commodity's value</li>
+</ul>
+
+<p><strong>Sorting:</strong> Results are sorted by <code>SICT_Tons</code> in descending order to highlight the most significant commodities at SICT.</p>
+
+<p><strong>Use:</strong> Identifies which commodities are primarily handled at SICT (high share %) versus those distributed across multiple piers (low share %).</p>
+
+<h4>6.3.4 Top Commodities Analysis (by Tonnage)</h4>
+
+<p>The script identifies the top 5 commodities by tonnage for two different data perspectives:</p>
+
+<p><strong>A. FAF Model Estimates (Uncalibrated)</strong></p>
+
+<p><strong>Output Sheet:</strong> <code>TopCommodities_FAF_Tons</code> - Top 5 commodities by tonnage from <code>SICT_Piers_FAF</code> sheet</p>
+
+<p><strong>Source:</strong> <code>SICT_Piers_FAF</code> sheet (raw FAF model data before calibration)</p>
+
+<p><strong>Columns:</strong></p>
+<ul>
+<li><code>SCTG2_Commodity</code> - Commodity description</li>
+<li><code>Tons</code> - Total tonnage for this commodity</li>
+<li><code>Pct_of_Total</code> - Percentage of SICT total tonnage</li>
+</ul>
+
+<p><strong>Use:</strong> Shows the FAF model's original commodity distribution before scaling to actual port data.</p>
+
+<p><strong>B. Scaled Model (Including All Cargo Types)</strong></p>
+
+<p><strong>Output Sheet:</strong> <code>TopCommodities_Scaled_Tons</code> - Top 5 commodities by tonnage from <code>SICT_Piers_byPortTons</code> sheet</p>
+
+<p><strong>Source:</strong> <code>SICT_Piers_byPortTons</code> sheet (calibrated to actual SICT wharfage data)</p>
+
+<p><strong>Columns:</strong></p>
+<ul>
+<li><code>SCTG2_Commodity</code> - Commodity description</li>
+<li><code>Scaled_Tons</code> - Calibrated tonnage for this commodity</li>
+<li><code>Pct_of_Total</code> - Percentage of SICT total tonnage</li>
+</ul>
+
+<p><strong>Use:</strong> Provides the primary commodity ranking after calibration to actual port throughput. This is the recommended dataset for reporting and analysis.</p>
+
+<h3>6.4 Console Output Summary</h3>
+
+<p>The script prints a summary to the console for quick reference:</p>
+
+<pre><code>--- SUMMARY FOR PRESENTATION ---
+
+SICT Share of Honolulu Harbor:
+  - Tonnage: XX.X%
+  - Value: XX.X%
+
+Top 5 Commodities by Tonnage (Scaled Model):
+  1. [Commodity Name]: XXX,XXX tons (XX.X%)
+  2. [Commodity Name]: XXX,XXX tons (XX.X%)
+  3. [Commodity Name]: XXX,XXX tons (XX.X%)
+  4. [Commodity Name]: XXX,XXX tons (XX.X%)
+  5. [Commodity Name]: XXX,XXX tons (XX.X%)</code></pre>
+
+<p>This summary provides key statistics for presentations and executive summaries.</p>
+
+<h3>6.5 Running the Analysis</h3>
+
+<p>To regenerate the analysis results after updating the FAF data:</p>
+
+<pre><code>python Script/analyze_sict_results.py</code></pre>
+
+<p>The script will:</p>
+<ol>
+<li>Load the three deliverable sheets from <code>FAF_Hawaii_Region_2024.xlsx</code></li>
+<li>Perform all analyses</li>
+<li>Save results to <code>SICT_Analysis_Results.xlsx</code></li>
+<li>Print summary statistics to the console</li>
+</ol>
+
+<hr>
+
+<div style="height: 40vh;"></div>
+</main>
+
+<script>
+  // Theme Toggle Logic
+  const themeToggle = document.getElementById('theme-toggle');
+  const moonIcon = document.getElementById('moon-icon');
+  const sunIcon = document.getElementById('sun-icon');
+  const themeText = document.getElementById('theme-text');
+  const html = document.documentElement;
+
+  const updateThemeUI = (isDark) => {
+    moonIcon.style.display = isDark ? 'none' : 'block';
+    sunIcon.style.display = isDark ? 'block' : 'none';
+    themeText.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+    html.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  };
+
+  // Initialize theme
+  const savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  updateThemeUI(savedTheme === 'dark');
+
+  themeToggle.addEventListener('click', () => {
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    const newTheme = isDark ? 'light' : 'dark';
+    localStorage.setItem('theme', newTheme);
+    updateThemeUI(!isDark);
+  });
+
+  // Scroll Spy Logic
+  const sections = document.querySelectorAll('h1[id], h2[id]');
+  const navLinks = document.querySelectorAll('.toc-list a');
+
+  const observerOptions = {
+    root: null,
+    rootMargin: '0px 0px -80% 0px',
+    threshold: 0
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.getAttribute('id');
+        navLinks.forEach(link => {
+          link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+        });
+      }
+    });
+  }, observerOptions);
+
+  sections.forEach(section => observer.observe(section));
+
+  // Handle top and bottom edge cases
+  window.addEventListener('scroll', () => {
+    const scrollY = window.scrollY;
+    const scrollPosition = window.innerHeight + scrollY;
+    const bodyHeight = document.body.offsetHeight;
+
+    // Very top of page
+    if (scrollY <= 50) {
+      const firstId = sections[0].getAttribute('id');
+      navLinks.forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === `#${firstId}`);
+      });
+      return;
+    }
+
+    // Very bottom of page
+    if (scrollPosition >= bodyHeight - 200) {
+      const lastId = sections[sections.length - 1].getAttribute('id');
+      navLinks.forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === `#${lastId}`);
+      });
+    }
+  });
+</script>
+</body>
+</html>
