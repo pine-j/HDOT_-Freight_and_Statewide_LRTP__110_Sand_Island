@@ -138,14 +138,13 @@ Three handling scenarios based on containerization proportion:
 
 ### Step 5: SICT Calibration
 
-- FAF model estimated ~941,000 tons for SICT piers
+- FAF model estimated ~132,000 tons for SICT piers
 - Actual port data showed ~4,084,000 tons inbound
-- SICT piers do not handle Liquid-Bulk cargo (handled at other Sand Island facilities and Pier 30)
 - **Solution**: Scale FAF data to match actual throughput while preserving commodity proportions
 
 | Source | Total Tons | Notes |
 |--------|------------|-------|
-| FAF Model | ~941,000 | Excludes Liquid-Bulk (not handled at SICT) |
+| FAF Model | ~132,000 | FAF-based estimate for SICT piers |
 | Actual Port Data | 4,084,234 | Actual wharfage throughput |
 
 ### Step 5 (cont.): Classification Rules
@@ -190,8 +189,6 @@ scaled_value  = FAF_value × tonnage_scale
 | Estimation Model 1: SICT_Piers_FAF | Original FAF estimates for SICT (baseline) |
 | Estimation Model 2: SICT_Piers_byPortTons | Scaled to actual port tonnage |
 
-**Note:** SICT piers do not handle Liquid-Bulk cargo. Liquid-Bulk operations (petroleum products, chemicals) are handled at other Sand Island facilities and Pier 30, and are typically transported via pipeline rather than by truck over the bridge.
-
 ## Results
 
 ### Pier Capacity Proportions
@@ -212,40 +209,39 @@ Honolulu Harbor pier capacity allocation by cargo type:
 | 60 | 0% | 0% | 0% | 0% | 100% |
 | **Other Piers Total** | **23%** | **87%** | **90%** | **100%** | **100%** |
 
-**Key Insight:** SICT dominates container handling (77%). SICT piers do not handle Liquid-Bulk cargo; Liquid-Bulk operations are handled at other Sand Island facilities and Pier 30.
+**Key Insight:** SICT dominates container handling (77%).
 
 ### SICT Share of Honolulu Harbor (FAF Model)
 
 **Overall SICT Share (scoped to SICT cargo types: Containers, RO/RO, Break-Bulk):**
 
-SICT only handles Containers, RO/RO (automobiles), and Break-Bulk cargo. The share calculation is scoped to these three cargo types for a like-for-like comparison, excluding Liquid-Bulk and Dry-Bulk which SICT does not handle.
+SICT handles Containers, RO/RO (automobiles), and Break-Bulk cargo. The share calculation is scoped to these three cargo types for a like-for-like comparison.
 
 | Metric | SICT | Honolulu Total | SICT Share |
 |--------|------|----------------|------------|
-| Tonnage | TBD | TBD | **TBD%** |
-| Value | TBD | TBD | **TBD%** |
+| Tonnage | 132,035 tons | 214,437 tons | **61.6%** |
 
 ### Top Commodities: FAF Model (by Tonnage)
 
 | Commodity | Tons | % of SICT |
 |-----------|------|-----------|
-| Gasoline | 340,379 | 36.2% |
-| Crude petroleum | 252,024 | 26.8% |
-| Fuel oils | 217,038 | 23.1% |
-| Natural gas/fossil | 23,054 | 2.4% |
-| Nonmetal min. prods. | 22,110 | 2.3% |
+| Nonmetal min. prods. | 16,887 | 12.8% |
+| Mixed freight | 15,704 | 11.9% |
+| Paper articles | 12,458 | 9.4% |
+| Articles-base metal | 10,205 | 7.7% |
+| Milled grain prods. | 9,441 | 7.2% |
 
 ### Top Commodities: Scaled Model (by Tonnage)
 
-**Key Insight:** After calibration, petroleum products (86% of FAF tonnage) are no longer dominant. Manufactured goods, mixed freight, and food products emerge as the top commodities — these are the goods most likely transported by truck over the Sand Island Access Road bridge.
+**Key Insight:** After calibration to actual port throughput (~4.1M tons vs. ~132K FAF estimate), the top commodities remain consistent with the FAF baseline. Construction materials, mixed freight, and processed goods dominate SICT — these are the goods most likely transported by truck over the Sand Island Access Road bridge.
 
 | Commodity | Scaled Tons | % of SICT |
 |-----------|-------------|-----------|
 | Nonmetal min. prods. | 537,225 | 13.2% |
 | Mixed freight | 499,603 | 12.2% |
-| Paper articles | 393,651 | 9.6% |
-| Articles-base metal | 314,447 | 7.7% |
-| Milled grain prods. | 300,350 | 7.3% |
+| Paper articles | 394,087 | 9.6% |
+| Articles-base metal | 316,099 | 7.7% |
+| Milled grain prods. | 300,350 | 7.4% |
 
 ## Conclusion
 
@@ -254,15 +250,14 @@ SICT only handles Containers, RO/RO (automobiles), and Break-Bulk cargo. The sha
 - Combined FAF regional data with actual port data for robust estimates
 - Preserved FAF commodity detail while matching observed throughput
 - Produced pier-level allocations based on operational capacity
-- SICT piers do not handle Liquid-Bulk; petroleum transported via pipeline, not bridge
-- **SICT handles a significant share of Honolulu Harbor's container, RO/RO, and break-bulk tonnage**
-- After calibration, non-petroleum goods (mixed freight, food products, construction materials) dominate — directly relevant to bridge truck traffic
+- **SICT handles 61.6% of Honolulu Harbor's tonnage** (scoped to Containers, RO/RO, and Break-Bulk)
+- Construction materials, mixed freight, and processed goods dominate SICT — directly relevant to bridge truck traffic
 
 ### Limitations & Considerations
 
 | Limitation | Impact | Mitigation |
 |------------|--------|------------|
-| FAF underestimates SICT throughput (~941K vs ~4.1M tons) | Scaling factors are large | Calibrated with actual wharfage data |
+| FAF underestimates SICT throughput (~132K vs ~4.1M tons) | Scaling factors are large | Calibrated with actual wharfage data |
 | Temporal mismatch: FAF CY2024 vs. wharfage FY2025 | Minor seasonal variation possible | One full year assumed representative |
 | Scaling assumes FAF commodity proportions hold at actual volumes | Commodity mix may differ | Best available approach given data constraints |
 

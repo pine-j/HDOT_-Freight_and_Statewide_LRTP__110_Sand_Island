@@ -427,7 +427,7 @@ This summary provides the target tonnage values used to calibrate the FAF model 
 
 The FAF (Freight Analysis Framework) model provides valuable commodity-level detail for freight flows, including the distribution across SCTG2 commodity categories. However, when comparing FAF estimates for the SICT piers to actual port data, we observed significant discrepancies:
 
-- **FAF Model Estimate:** ~941,000 tons total for SICT piers (51, 52, 53)
+- **FAF Model Estimate:** ~132,000 tons total for SICT piers (51, 52, 53)
 - **Actual Port Data (PDF):** ~4,084,000 tons total inbound cargo
 
 The PDF data from SICT authorities provides actual wharfage records but lacks detailed commodity breakdowns. The cargo categories in the PDF are limited to broad groupings (Vehicles, General Merchandise, Shipping Devices) rather than the 42 SCTG2 commodity categories available in FAF.
@@ -438,13 +438,7 @@ To leverage the strengths of both data sources, we use the FAF model for commodi
 2. Calibrates total tonnage to match observed port throughput (which FAF underestimates)
 3. Maintains consistency with the categorical breakdowns available in the SICT data
 
-### 5.4 Liquid-Bulk at SICT Piers
-
-SICT piers (51, 52, 53) do not handle Liquid-Bulk cargo. Liquid-Bulk operations in Honolulu Harbor (petroleum products, chemicals, and other liquids) are handled at other facilities, primarily Sand Island fuel terminals and Pier 30. The `Current_v2` pier proportions sheet reflects this by assigning a Liquid-Bulk Proportion of 0% to SICT piers.
-
-As a result, the SICT calibration analysis does not include Liquid-Bulk cargo, and no separate liquid-bulk estimation model is needed. Petroleum products are typically transported via pipelines from Sand Island to the rest of Honolulu rather than by truck over the Sand Island Access Road bridge, making them not relevant to the bridge traffic analysis.
-
-### 5.5 Classification Rules
+### 5.4 Classification Rules
 
 The SICT analysis uses the following classification rules to map FAF commodity data to the categories available in the SICT wharfage reports:
 
@@ -456,7 +450,7 @@ The SICT analysis uses the following classification rules to map FAF commodity d
 - **Yes**: When `cargo_type` = "Containers"
 - **No**: When `cargo_type` ≠ "Containers" (i.e., Break-Bulk, RO/RO, or Dry-Bulk)
 
-### 5.6 Deliverable Output Sheets (3 sheets)
+### 5.5 Deliverable Output Sheets (3 sheets)
 
 For final reporting, the script produces the `Honolulu_Piers` sheet plus two SICT output sheets in `FAF_Hawaii_Region_2024.xlsx` (other tabs are intermediate/QC outputs for internal review):
 
@@ -538,7 +532,7 @@ Extracts and displays the pier capacity proportions from the Honolulu Harbor Pie
 
 **Output Sheet:** `SICT_Share_Total`
 
-Calculates SICT's overall share of Honolulu Harbor freight flows by comparing total tonnage and value for SICT piers (51, 52, 53) against all Honolulu Harbor piers. The calculation is **scoped to only the cargo types that SICT actually handles** — Containers, RO/RO, and Break-Bulk — so that the comparison is like-for-like. Liquid-Bulk and Dry-Bulk cargo, which SICT does not handle, are excluded from both the SICT and Honolulu totals.
+Calculates SICT's overall share of Honolulu Harbor freight flows by comparing total tonnage for SICT piers (51, 52, 53) against all Honolulu Harbor piers. The calculation is **scoped to only the cargo types that SICT actually handles** — Containers, RO/RO, and Break-Bulk — so that the comparison is like-for-like.
 
 **Calculation:**
 ```python
@@ -546,16 +540,12 @@ Calculates SICT's overall share of Honolulu Harbor freight flows by comparing to
 df_scoped = df_honolulu_piers[cargo_type in {"Containers", "RO/RO", "Break-Bulk"}]
 
 SICT_Share_Tons_Pct = (SICT_Total_Tons / Honolulu_Total_Tons) × 100   # both scoped
-SICT_Share_Value_Pct = (SICT_Total_Value / Honolulu_Total_Value) × 100 # both scoped
 ```
 
 **Columns:**
 - `Honolulu_Total_Tons` - Total tonnage for all Honolulu Harbor piers (scoped to SICT cargo types)
 - `SICT_Total_Tons` - Total tonnage for SICT piers (51, 52, 53)
 - `SICT_Share_Tons_Pct` - SICT's percentage share of total tonnage
-- `Honolulu_Total_Value` - Total freight value for all Honolulu Harbor piers (scoped to SICT cargo types)
-- `SICT_Total_Value` - Total freight value for SICT piers
-- `SICT_Share_Value_Pct` - SICT's percentage share of total value
 
 **Use:** Provides a like-for-like summary of SICT's importance to Honolulu Harbor for the cargo types it serves.
 
@@ -569,7 +559,6 @@ Breaks down SICT's share of Honolulu Harbor by individual SCTG2 commodity, showi
 ```python
 For each SCTG2_Commodity:
     SICT_Share_Tons_Pct = (SICT_Tons / Honolulu_Tons) × 100
-    SICT_Share_Value_Pct = (SICT_Value / Honolulu_Value) × 100
 ```
 
 **Columns:**
@@ -577,9 +566,6 @@ For each SCTG2_Commodity:
 - `Honolulu_Tons` - Total tonnage for this commodity across all Honolulu Harbor piers
 - `SICT_Tons` - Tonnage for this commodity at SICT piers
 - `SICT_Share_Tons_Pct` - SICT's percentage share of this commodity's tonnage
-- `Honolulu_Value` - Total value for this commodity across all Honolulu Harbor piers
-- `SICT_Value` - Value for this commodity at SICT piers
-- `SICT_Share_Value_Pct` - SICT's percentage share of this commodity's value
 
 **Sorting:** Results are sorted by `SICT_Tons` in descending order to highlight the most significant commodities at SICT.
 
@@ -624,7 +610,6 @@ The script prints a summary to the console for quick reference:
 
 SICT Share of Honolulu Harbor:
   - Tonnage: XX.X%
-  - Value: XX.X%
 
 Top 5 Commodities by Tonnage (Scaled Model):
   1. [Commodity Name]: XXX,XXX tons (XX.X%)
