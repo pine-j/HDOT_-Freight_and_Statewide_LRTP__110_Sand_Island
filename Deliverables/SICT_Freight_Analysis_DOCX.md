@@ -1,10 +1,5 @@
 # Sand Island Container Terminal (SICT) Freight Commodity Flow Analysis
 
-## Methodology and Results Report
-
-**Prepared for:** Hawaii Department of Transportation (HDOT)
-**Project:** Freight and Statewide LRTP — Sand Island Corridor (Task 110)
-
 ---
 
 ## Table of Contents
