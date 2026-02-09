@@ -16,6 +16,7 @@ Author: Generated for HDOT presentations
 """
 
 import argparse
+import copy
 import logging
 import os
 import re
@@ -26,6 +27,8 @@ import zipfile
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional, Dict, Any
+
+from datetime import datetime
 
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
@@ -39,6 +42,27 @@ logger = logging.getLogger(__name__)
 
 # Suppress harmless duplicate name warnings when clearing template slides
 warnings.filterwarnings('ignore', message='Duplicate name:.*ppt/slides/')
+
+
+def _clear_metadata(prs: Presentation) -> None:
+    """Clear all core document properties (author, title, dates, etc.)
+    so the exported file contains no identifying metadata."""
+    props = prs.core_properties
+    props.author = ""
+    props.last_modified_by = ""
+    props.title = ""
+    props.subject = ""
+    props.keywords = ""
+    props.category = ""
+    props.comments = ""
+    props.content_status = ""
+    props.revision = 1
+    # Set created / modified to the Unix epoch so they appear blank
+    epoch = datetime(1970, 1, 1)
+    props.created = epoch
+    props.modified = epoch
+    logger.debug("Document metadata cleared.")
+
 
 # ============================================
 # CONFIGURATION - Modify these settings
@@ -96,8 +120,8 @@ CONFIG = {
         "section": {"name": "Calibri", "size": 36, "bold": True},
         "slide_title": {"name": "Calibri", "size": 28, "bold": True},
         "body": {"name": "Calibri", "size": 18},
-        "table_header": {"name": "Calibri", "size": 14, "bold": True},  # Increased from 12
-        "table_body": {"name": "Calibri", "size": 12},  # Increased from 11
+        "table_header": {"name": "Calibri", "size": 14, "bold": True},
+        "table_body": {"name": "Calibri", "size": 14},
     },
     
     # Slide dimensions (widescreen 16:9)
@@ -127,6 +151,62 @@ PH_PICTURE = PP_PLACEHOLDER.PICTURE       # 18
 
 # Media clip placeholder type (no enum constant in python-pptx)
 PH_MEDIA_CLIP = 14
+
+# Slide-number placeholder type constant
+PH_SLIDE_NUMBER = PP_PLACEHOLDER.SLIDE_NUMBER  # 13
+
+
+def _ensure_slide_number(slide):
+    """Copy the slide-number placeholder from the layout onto the slide.
+
+    When python-pptx creates a slide via ``add_slide()``, it generates
+    ``<p:sp>`` elements for *content* placeholders (title, body) but does
+    **not** copy "decorator" placeholders (slide number, footer, date) into
+    the slide's shape tree.  Those decorators are expected to be inherited
+    from the layout; however, PowerPoint only renders inherited decorators
+    when the user has checked *Insert → Header & Footer → Slide number*.
+
+    By deep-copying the layout's slide-number ``<p:sp>`` element directly
+    into the slide's ``<p:spTree>``, the ``<a:fld type="slidenum">`` field
+    is always present and the number renders unconditionally.
+
+    If the layout has no slide-number placeholder (e.g. Title Slide) or if
+    the slide already contains one, this function is a harmless no-op.
+    """
+    from lxml import etree as _etree
+
+    # Quick check: does the slide already have a sldNum placeholder?
+    spTree = slide._element.find(qn('p:cSld'))
+    if spTree is None:
+        return
+    spTree = spTree.find(qn('p:spTree'))
+    if spTree is None:
+        return
+
+    for sp in spTree.iter(qn('p:sp')):
+        nvPr = sp.find(qn('p:nvSpPr'))
+        if nvPr is not None:
+            ph_el = nvPr.find(qn('p:nvPr'))
+            if ph_el is not None:
+                ph = ph_el.find(qn('p:ph'))
+                if ph is not None and ph.get('type') == 'sldNum':
+                    return  # Already present
+
+    # Find the slide-number placeholder on the parent layout
+    layout = slide.slide_layout
+    src_sp = None
+    for shape in layout.placeholders:
+        if shape.placeholder_format.type == PH_SLIDE_NUMBER:
+            src_sp = shape._element
+            break
+
+    if src_sp is None:
+        return  # Layout has no slide-number placeholder (e.g. Title Slide)
+
+    # Deep-copy the XML element and append it to the slide's shape tree
+    sp_copy = copy.deepcopy(src_sp)
+    spTree.append(sp_copy)
+    logger.debug("    -> Copied slide-number placeholder from layout")
 
 
 @dataclass
@@ -798,7 +878,8 @@ def create_clean_template(source_template: str, output_path: str) -> str:
             except Exception:
                 pass
     
-    # Save as the clean template
+    # Clear metadata and save as the clean template
+    _clear_metadata(prs)
     prs.save(output_path)
     logger.info("Clean template saved to: %s", output_path)
     logger.info("TIP: You can now use this clean template to avoid duplicate warnings.")
@@ -2004,21 +2085,90 @@ def set_cell_text_with_formatting(cell, text: str, font_size: int, font_name: st
             run.font.italic = is_italic
 
 
-def _calculate_column_widths(table: TableData, total_width_emu: int,
-                             header_font_size: int, body_font_size: int) -> list:
-    """Calculate content-aware column widths proportional to cell content.
+def _detect_uniform_columns(table: TableData) -> set:
+    """Detect columns that contain similar short data and should share equal widths.
 
-    Uses a blend of average and maximum cell text lengths (60/40) so that
-    columns with consistently shorter content stay compact, rather than
-    being inflated by a single long cell.  For tables with 2-3 columns,
-    a mild power amplification (exponent 1.2) is applied to the ratios
-    so label-style columns are visibly narrower than description columns.
+    When a table has multiple data columns with similarly short numeric content
+    (e.g. all percentage values, all small counts), those columns look best
+    with equal widths and center alignment rather than proportional sizing.
+
+    Detection criteria — a column is a **uniform candidate** if:
+      • ≥60 % of its body cells are numeric (digits, commas, %, $, ~)
+      • The longest cell text is ≤ 12 characters
+
+    A uniform **group** forms when ≥ 2 candidates exist and their max cell
+    lengths are within a 3× ratio of each other.
+
+    Returns:
+        Set of column indices that should be equalised / center-aligned.
+        Empty set if no uniform group is detected.
+    """
+    num_cols = len(table.headers)
+    if num_cols < 3:
+        # Need at least 1 label column + 2 data columns
+        return set()
+
+    _num_re = re.compile(
+        r'^[~$±]?[\d,]+\.?\d*\s*[%]?$'   # "12,345", "$99", "~5%", "3.14"
+        r'|^\d+\s*[%]$'                    # "77%"
+        r'|^[0-9]+$'                        # plain integer
+    )
+
+    candidates = []
+    for col_idx in range(num_cols):
+        max_len = 0
+        numeric_count = 0
+        for row in table.rows:
+            if col_idx < len(row):
+                text = row[col_idx].replace('**', '').replace('*', '').strip()
+                max_len = max(max_len, len(text))
+                if _num_re.match(text):
+                    numeric_count += 1
+
+        is_numeric = len(table.rows) > 0 and numeric_count / len(table.rows) >= 0.6
+        is_short = max_len <= 12
+
+        if is_numeric and is_short:
+            candidates.append((col_idx, max_len))
+
+    if len(candidates) < 2:
+        return set()
+
+    # Verify similarity: max-to-min content-length ratio ≤ 3
+    max_lengths = [ml for _, ml in candidates]
+    min_l = min(max_lengths) if max_lengths else 0
+    max_l = max(max_lengths) if max_lengths else 0
+    if min_l > 0 and max_l / min_l > 3.0:
+        return set()
+
+    return {idx for idx, _ in candidates}
+
+
+def _calculate_column_widths(table: TableData, total_width_emu: int,
+                             header_font_size: int, body_font_size: int,
+                             uniform_cols: Optional[set] = None) -> list:
+    """Calculate smart column widths that minimise wrapping in short columns.
+
+    Strategy — "fit short columns first":
+      1. Compute the natural (single-line, no-wrap) width each column needs.
+      2. If every column fits on one line within the available width, scale up
+         proportionally — all content renders without wrapping.
+      3. Otherwise, *lock* columns whose natural width is small enough that
+         they can display their content without wrapping, then distribute
+         the remaining space among the wider columns proportionally.
+
+    This prevents label-style columns (e.g. "Commodity") from being starved
+    to a sliver while description columns get excess space.
+
+    When *uniform_cols* is provided, those columns are equalised to the
+    widest among them (e.g. multiple percentage columns).
 
     Args:
         table: TableData with headers and rows
-        total_width_emu: Total table width in EMU (English Metric Units)
+        total_width_emu: Total table width in EMU
         header_font_size: Header font size in points
         body_font_size: Body font size in points
+        uniform_cols: Optional set of column indices to equalise
 
     Returns:
         List of column widths in EMU
@@ -2027,85 +2177,123 @@ def _calculate_column_widths(table: TableData, total_width_emu: int,
     if num_cols == 0:
         return []
 
-    # Calculate an effective content-length score per column
-    col_scores = []
-    for col_idx in range(num_cols):
-        # Header text (strip markdown formatting for measurement)
-        header_text = table.headers[col_idx].replace('**', '').replace('*', '')
-        # Weight header text by font-size ratio (headers are typically larger/bolder)
-        header_score = len(header_text) * (header_font_size / body_font_size)
+    # Character width in EMU: ~52% of font em for proportional sans-serif
+    char_w_emu = int(body_font_size * 0.52 * 12700)  # 1 pt = 12700 EMU
+    cell_margins_emu = 274320  # ~0.30" combined L+R cell margins
 
-        # Collect body-cell text lengths for this column
-        body_lengths = []
+    # ---- Step 1: natural (single-line) width per column ----
+    natural_widths = []
+    for col_idx in range(num_cols):
+        header_text = table.headers[col_idx].replace('**', '').replace('*', '')
+        max_len = len(header_text)
         for row in table.rows:
             if col_idx < len(row):
                 cell_text = row[col_idx].replace('**', '').replace('*', '')
-                body_lengths.append(len(cell_text))
+                max_len = max(max_len, len(cell_text))
+        natural_w = max(1, max_len) * char_w_emu + cell_margins_emu
+        natural_widths.append(natural_w)
 
-        if body_lengths:
-            max_body_len = max(body_lengths)
-            avg_body_len = sum(body_lengths) / len(body_lengths)
-            # Blend average (60%) and max (40%) — rewards consistent content
-            # width and prevents a single long cell from inflating the column
-            effective_body = 0.6 * avg_body_len + 0.4 * max_body_len
+    total_natural = sum(natural_widths)
+
+    if total_natural <= total_width_emu:
+        # ---- All content fits on one line — scale up proportionally ----
+        scale = total_width_emu / total_natural
+        widths = [int(w * scale) for w in natural_widths]
+    else:
+        # ---- Some columns must wrap — lock short columns first ----
+        # Threshold: lock a column if its natural width is ≤ this fraction
+        # of total table width (generous for few columns, tighter for many)
+        if num_cols <= 2:
+            max_lock_frac = 0.35
+        elif num_cols <= 4:
+            max_lock_frac = 0.28
         else:
-            effective_body = 0
+            max_lock_frac = 0.20
+        max_lock_width = int(total_width_emu * max_lock_frac)
+        min_col_width = int(total_width_emu * 0.08)  # absolute floor
 
-        # Use the larger of header or effective body length
-        score = max(header_score, effective_body)
-        # Minimum score to prevent zero-width columns
-        score = max(score, 5)
-        col_scores.append(score)
+        widths = [0] * num_cols
+        locked = set()
+        remaining_width = total_width_emu
 
-    total_score = sum(col_scores)
-    if total_score == 0:
-        # Fallback to even distribution
-        return [total_width_emu // num_cols] * num_cols
+        # Lock smallest columns first (greedy): ensures label-like columns
+        # get their full natural width without wrapping
+        for idx in sorted(range(num_cols), key=lambda i: natural_widths[i]):
+            nw = natural_widths[idx]
+            unlocked_remaining = num_cols - len(locked) - 1
 
-    # Proportional ratios
-    ratios = [s / total_score for s in col_scores]
+            if nw <= max_lock_width:
+                # Only lock if remaining space still gives other columns
+                # at least min_col_width each
+                leftover = remaining_width - nw
+                if unlocked_remaining == 0 or leftover >= unlocked_remaining * min_col_width:
+                    widths[idx] = nw
+                    locked.add(idx)
+                    remaining_width -= nw
 
-    # For tables with few columns (2-3), amplify differences to avoid
-    # near-equal splits when content lengths are moderately different.
-    # A power > 1 makes the wider column wider and the narrower one narrower.
-    if num_cols <= 3:
-        ratios = [r ** 1.2 for r in ratios]
-        ratio_sum = sum(ratios)
-        ratios = [r / ratio_sum for r in ratios]
+        # Distribute remaining width to unlocked columns proportionally
+        # to their natural widths (wider content gets more space)
+        unlocked = [i for i in range(num_cols) if i not in locked]
+        if unlocked:
+            unlocked_natural = sum(natural_widths[i] for i in unlocked)
+            if unlocked_natural > 0:
+                for i in unlocked:
+                    share = remaining_width * natural_widths[i] / unlocked_natural
+                    widths[i] = max(min_col_width, int(share))
+            else:
+                per_col = remaining_width // len(unlocked)
+                for i in unlocked:
+                    widths[i] = per_col
 
-    # Apply min/max constraints
-    min_ratio = 0.10  # No column narrower than 10% of table
-    max_ratio = 0.75  # No column wider than 75% of table
-    for i in range(num_cols):
-        ratios[i] = max(min_ratio, min(max_ratio, ratios[i]))
-
-    # Re-normalize so ratios sum to 1.0
-    ratio_sum = sum(ratios)
-    ratios = [r / ratio_sum for r in ratios]
-
-    # Convert to EMU widths
-    widths = [int(r * total_width_emu) for r in ratios]
-
-    # Enforce minimum widths so header text doesn't wrap to a second line.
-    # Approximate character width: header_font_size * 600 EMU (~0.007 inches)
-    # plus cell margins (~0.30 inches = 274320 EMU).
+    # ---- Enforce header minimum widths ----
     header_min_widths = []
+    header_char_w_emu = int(header_font_size * 0.52 * 12700)
     for col_idx in range(num_cols):
         header_text = table.headers[col_idx].replace('**', '').replace('*', '')
-        char_width_emu = header_font_size * 600  # ~0.007" per char per pt
-        min_w = int(len(header_text) * char_width_emu + 274320)  # + cell margins
+        min_w = int(len(header_text) * header_char_w_emu + cell_margins_emu)
         header_min_widths.append(min_w)
 
-    # Widen any column that is too narrow for its header, stealing from
-    # the widest column to keep the total constant.
     for i in range(num_cols):
         deficit = header_min_widths[i] - widths[i]
         if deficit > 0:
-            # Find the widest column to steal from
             widest_idx = widths.index(max(widths))
             if widest_idx != i and widths[widest_idx] - deficit > header_min_widths[widest_idx]:
                 widths[i] += deficit
                 widths[widest_idx] -= deficit
+
+    # ---- Equalise uniform column groups ----
+    if uniform_cols and len(uniform_cols) >= 2:
+        u_indices = sorted(uniform_cols)
+        non_u = [i for i in range(num_cols) if i not in uniform_cols]
+
+        # Floor widths for non-uniform columns: use their natural (single-line)
+        # width so uniform equalization never compresses label columns into
+        # wrapping.  natural_widths[i] already accounts for the longest cell.
+        non_u_floors = {}
+        for i in non_u:
+            non_u_floors[i] = max(header_min_widths[i], natural_widths[i])
+
+        target_w = max(widths[i] for i in u_indices)
+        extra_needed = sum(max(0, target_w - widths[i]) for i in u_indices)
+
+        if extra_needed > 0 and non_u:
+            total_non_u = sum(widths[i] for i in non_u)
+            total_floor = sum(non_u_floors[i] for i in non_u)
+            max_shrink = max(0, total_non_u - total_floor)
+            if extra_needed > max_shrink:
+                available_for_uniform = total_width_emu - total_floor
+                target_w = available_for_uniform // len(u_indices)
+                extra_needed = sum(max(0, target_w - widths[i]) for i in u_indices)
+
+        for i in u_indices:
+            widths[i] = target_w
+
+        if extra_needed > 0 and non_u:
+            total_non_u = sum(widths[i] for i in non_u)
+            if total_non_u > 0:
+                for i in non_u:
+                    shrink = int(extra_needed * widths[i] / total_non_u)
+                    widths[i] = max(non_u_floors[i], widths[i] - shrink)
 
     # Distribute rounding remainder to the widest column
     remainder = total_width_emu - sum(widths)
@@ -2258,10 +2446,9 @@ def add_table_to_slide(slide, prs: Presentation, table: TableData,
     # ---- Font sizes & cell margins (computed before table creation so we ----
     # ---- can estimate natural table width from content)                  ----
     
-    # For large tables, reduce base font sizes to fit
+    # Target: match body text size; reduce only when table content won't fit
+    target_font_size = CONFIG["fonts"]["body"]["size"]
     is_large_table = num_rows > 8
-    header_font_size = CONFIG["fonts"]["table_header"]["size"] - (2 if is_large_table else 0)
-    body_font_size = CONFIG["fonts"]["table_body"]["size"] - (1 if is_large_table else 0)
     
     # Cell margin settings — generous left/right margins for readability
     cell_margin_top = Inches(0.03) if is_large_table else Inches(0.06)
@@ -2269,42 +2456,57 @@ def add_table_to_slide(slide, prs: Presentation, table: TableData,
     cell_margin_left = Inches(0.10) if is_large_table else Inches(0.15)
     cell_margin_right = Inches(0.06) if is_large_table else Inches(0.10)
     
-    # --- Dynamic font scaling based on actual table row height ---
-    # Uses the *capped* row_height (not raw available_height) so sparse
-    # tables with 1-2 rows don't get absurdly oversized fonts.
-    # 1) Vertical space ratio: how much room each row gets vs. what it needs
-    baseline_row_height = (
-        (body_font_size * 1.5 / 72)  # line height in inches
-        + cell_margin_top.inches + cell_margin_bottom.inches
-        + 0.05  # extra breathing room
-    )
-    height_ratio = row_height / baseline_row_height
+    # --- Intelligent font sizing: start at body size, reduce only if needed ---
+    # Estimate proportional column widths from max content length per column
+    table_width_inches = int(table_width) / 914400
+    col_max_chars = []
+    for col_idx in range(num_cols):
+        max_len = len(table.headers[col_idx].replace('**', '').replace('*', ''))
+        for row in table.rows:
+            if col_idx < len(row):
+                cell_text = row[col_idx].replace('**', '').replace('*', '')
+                max_len = max(max_len, len(cell_text))
+        col_max_chars.append(max(1, max_len))
+    total_chars = sum(col_max_chars)
+    h_margin_per_col = cell_margin_left.inches + cell_margin_right.inches
+    usable_width = max(1.0, table_width_inches - num_cols * h_margin_per_col)
+    col_widths_est = [max(0.5, (c / total_chars) * usable_width) for c in col_max_chars]
     
-    # Gentle scaling curve (exponent < 1 dampens extreme ratios)
-    font_scale = max(0.75, min(1.5, height_ratio ** 0.45))
+    # Vertical overhead per row (cell margins + breathing room)
+    vert_overhead = cell_margin_top.inches + cell_margin_bottom.inches + 0.03
     
-    # 2) Text-density check: if cells contain long text on average,
-    #    dampen upward scaling to avoid excessive wrapping
-    total_text_len = 0
-    cell_count = 0
-    for row in table.rows:
-        for col_idx in range(min(num_cols, len(row))):
-            cell_text = row[col_idx].replace('**', '').replace('*', '')
-            total_text_len += len(cell_text)
-            cell_count += 1
-    avg_text_len = total_text_len / max(1, cell_count)
+    # Step down from target font size until estimated table height fits
+    # in the available vertical space.  Line height ≈ 1.2× font size for
+    # single-spaced Calibri; char width ≈ 0.52× font size.
+    table_font_size = target_font_size
+    est_total_height = 0.0
+    while table_font_size > 9:
+        line_ht = table_font_size * 1.2 / 72      # single-line height (inches)
+        char_w = table_font_size * 0.52 / 72       # approx char width (inches)
+        
+        # Estimate total table height at this font size (header + data rows)
+        est_total_height = 0.0
+        for row_idx in range(-1, len(table.rows)):   # -1 = header row
+            cells = table.headers if row_idx == -1 else table.rows[row_idx]
+            row_max_lines = 1
+            for col_idx in range(min(num_cols, len(cells))):
+                cell_text = cells[col_idx].replace('**', '').replace('*', '')
+                if not cell_text:
+                    continue
+                col_w = col_widths_est[col_idx] if col_idx < len(col_widths_est) else 2.0
+                cpl = max(1, int(col_w / char_w))            # chars per line
+                lines = max(1, -(-len(cell_text) // cpl))    # ceil division
+                row_max_lines = max(row_max_lines, lines)
+            est_total_height += row_max_lines * line_ht + vert_overhead
+        
+        if est_total_height <= available_height:
+            break
+        table_font_size -= 1
     
-    if avg_text_len > 35 and font_scale > 1.0:
-        # Dampen upward scaling for text-heavy tables
-        text_dampening = max(0.65, 35 / avg_text_len)
-        font_scale = 1.0 + (font_scale - 1.0) * text_dampening
-    
-    # Apply scaling with absolute min/max bounds
-    #   Header range: 11pt – 20pt    Body range: 9pt – 16pt
-    header_font_size = max(11, min(20, round(header_font_size * font_scale)))
-    body_font_size = max(9, min(16, round(body_font_size * font_scale)))
-    logger.debug("    Font scaling: ratio=%.2f, scale=%.2f -> header=%dpt, body=%dpt",
-                 height_ratio, font_scale, header_font_size, body_font_size)
+    header_font_size = table_font_size
+    body_font_size = table_font_size
+    logger.debug("    Font scaling: target=%dpt -> table=%dpt (est_h=%.2f\", avail=%.2f\")",
+                 target_font_size, table_font_size, est_total_height, available_height)
     
     # ---- Content-aware table width: shrink to fit content, center ----
     available_width_emu = int(table_width)
@@ -2340,9 +2542,15 @@ def add_table_to_slide(slide, prs: Presentation, table: TableData,
         actual_table_width, table_height
     ).table
     
-    # Content-aware column widths (proportional to cell content length)
+    # Detect uniform column groups (e.g. several short % columns) that
+    # should share equal widths and be center-aligned.
+    uniform_cols = _detect_uniform_columns(table)
+
+    # Content-aware column widths (proportional to cell content length,
+    # with uniform groups equalised)
     col_widths = _calculate_column_widths(table, int(actual_table_width),
-                                          header_font_size, body_font_size)
+                                          header_font_size, body_font_size,
+                                          uniform_cols=uniform_cols)
     for i in range(num_cols):
         pptx_table.columns[i].width = col_widths[i]
     
@@ -2379,7 +2587,13 @@ def add_table_to_slide(slide, prs: Presentation, table: TableData,
         p.font.size = Pt(header_font_size)
         p.font.name = CONFIG["fonts"]["table_header"]["name"]
         p.font.color.rgb = get_color(CONFIG["color_mapping"]["table_header_text"])
-        p.alignment = PP_ALIGN.RIGHT if i in numeric_cols else PP_ALIGN.LEFT
+        # Alignment: uniform group → CENTER, other numeric → RIGHT, else LEFT
+        if i in uniform_cols:
+            p.alignment = PP_ALIGN.CENTER
+        elif i in numeric_cols:
+            p.alignment = PP_ALIGN.RIGHT
+        else:
+            p.alignment = PP_ALIGN.LEFT
         # Vertical alignment and word wrap
         cell.vertical_anchor = MSO_ANCHOR.MIDDLE
         cell.text_frame.word_wrap = True
@@ -2437,7 +2651,12 @@ def add_table_to_slide(slide, prs: Presentation, table: TableData,
             # Vertical alignment, word wrap, and text alignment
             cell.vertical_anchor = MSO_ANCHOR.MIDDLE
             cell.text_frame.word_wrap = True
-            align = PP_ALIGN.RIGHT if col_idx in numeric_cols else PP_ALIGN.LEFT
+            if col_idx in uniform_cols:
+                align = PP_ALIGN.CENTER
+            elif col_idx in numeric_cols:
+                align = PP_ALIGN.RIGHT
+            else:
+                align = PP_ALIGN.LEFT
             for para in cell.text_frame.paragraphs:
                 para.alignment = align
             
@@ -2521,12 +2740,19 @@ def convert_markdown_to_pptx(
         elif slide_content.slide_type == SlideType.CONTENT:
             add_content_slide(prs, slide_content, layout_manager)
     
+    # Ensure slide-number placeholders are present on every slide
+    # (python-pptx doesn't copy decorator placeholders from the layout)
+    if layout_manager:
+        for slide in prs.slides:
+            _ensure_slide_number(slide)
+
     # Determine output path
     if not output_path:
         base = os.path.splitext(markdown_path)[0]
         output_path = f"{base}.pptx"
     
-    # Save presentation
+    # Clear metadata and save presentation
+    _clear_metadata(prs)
     prs.save(output_path)
     logger.info("=" * 50)
     logger.info("Presentation saved to: %s", output_path)

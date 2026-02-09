@@ -66,10 +66,9 @@ Read slide_01.png, slide_02.png, ... etc.
 
 ### Step 4: Fix Issues
 
-Based on visual inspection, edit either:
+> **CRITICAL: NEVER modify the original Markdown (`.md`) source file to fix a visual issue. All fixes must be made in the Python converter script (`md_to_pptx_converter.py`).** The Markdown content is the source of truth — if something looks wrong in the rendered presentation, the converter is responsible for handling it correctly.
 
-- **The generator script** — for layout, sizing, formatting, or rendering bugs
-- **The source content** — for content issues (too much text, bad structure)
+Based on visual inspection, edit **the generator script** (`md_to_pptx_converter.py`) — for layout, sizing, formatting, or rendering bugs.
 
 Common fixes:
 - Adjusting text box positions (`Inches` values in python-pptx code)
