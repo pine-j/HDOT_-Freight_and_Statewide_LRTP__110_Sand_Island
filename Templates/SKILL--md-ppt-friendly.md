@@ -66,6 +66,44 @@ The converter maps markdown headings to specific slide types:
 - More than 15 rows (split into multiple slides)
 - Long cell content (use abbreviations)
 
+### Labels / Non-Bulleted Paragraphs
+
+Use plain text lines (without `- `) for **section labels** and **subheadings** within a slide. These render as bold text without a bullet character, visually separating sections.
+
+**Preferred — plain text label:**
+
+```markdown
+### Step 4: Data Processing
+
+- FAF data is filtered for inbound freight
+
+**Filtering Logic:**
+
+| Flow Type | Origin | Destination |
+|-----------|--------|-------------|
+| Domestic  | Other  | Honolulu    |
+
+**Processing Pipeline:**
+
+1. Filter FAF data
+2. Aggregate by commodity
+3. Distribute to piers
+```
+
+**Also works — auto-detected label (fallback):**
+
+Bullet lines that consist ONLY of bold text (optionally with colon) are automatically detected as labels and rendered without a bullet:
+
+```markdown
+- **Filtering Logic:**    ← auto-detected as label (no bullet rendered)
+- **Note:** Some text     ← NOT a label (has text after bold, bullet rendered)
+```
+
+**When to use labels vs bullets:**
+- Use **labels** (`**Label:**`) for section subheadings that introduce a table, list, or group of bullets
+- Use **bullets** (`- text`) for actual list items and content points
+- Labels get extra vertical spacing above them for visual separation
+
 ### Text Formatting
 
 Use markdown formatting for emphasis:
@@ -76,15 +114,16 @@ Use markdown formatting for emphasis:
 
 ### Mixed Content
 
-You can combine bullets and tables on the same slide:
+You can combine labels, bullets, and tables on the same slide:
 
 ```markdown
 ### Project Overview
 
-Key metrics:
 - Budget: $2.5M
 - Duration: 18 months
 - Team size: 12 people
+
+**Project Timeline:**
 
 | Phase | Duration | Status |
 |-------|----------|--------|
@@ -92,6 +131,8 @@ Key metrics:
 | Development | 12 months | In Progress |
 | Testing | 3 months | Pending |
 ```
+
+Note how `**Project Timeline:**` renders as a bold label (no bullet) that introduces the table.
 
 ## Complete Template
 
