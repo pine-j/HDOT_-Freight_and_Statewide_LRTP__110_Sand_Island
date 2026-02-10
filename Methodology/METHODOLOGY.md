@@ -88,7 +88,7 @@ The pier operations data was manually extracted from the **Honolulu Harbor 2050 
 ### Output File
 The extracted data was compiled into the **Current_v2** sheet in [`Processed_Data/Honolulu Harbor Pier Operations and Cargo Inventory.xlsx`](Processed_Data/Honolulu Harbor Pier Operations and Cargo Inventory.xlsx).
 
-**Note:** The workbook also contains **Current** (original extraction) and **Future** (future scenario assumptions) sheets. The automated script uses the **Current_v2** sheet, which refines the original pier proportions to reflect that SICT piers (51, 52, 53) do not handle Liquid-Bulk cargo in this model. Although SICT does receive jet fuel, Liquid-Bulk is excluded from the estimation models; SICT is assumed to handle only Containers, RO/RO, and Break-Bulk cargo.
+**Note:** The workbook also contains **Current** (original extraction) and **Future** (future scenario assumptions) sheets. The automated script uses the **Current_v2** sheet, which refines the original pier proportions to reflect that SICT piers (51, 52, 53) do not handle Liquid-Bulk cargo in this model. Although SICT does receive jet fuel, Liquid-Bulk is excluded from the estimation models; SICT is assumed to handle only Containers, RO/RO, and Break-Bulk cargo. Additionally, the **Current** and **Current_v2** sheets assume that KCT Piers are not operational right now and they will be operational in the future.
 
 ### Columns Extracted from Master Plan
 

@@ -85,6 +85,8 @@ These proportions represent each pier's share of total harbor capacity and are t
 
 **Note:** The pier proportions were refined to reflect that SICT piers (51, 52, 53) do not handle Liquid-Bulk cargo in this model. Although SICT does receive some jet fuel, Liquid-Bulk is excluded from the estimation models; SICT is assumed to handle only Containers, RO/RO, and Break-Bulk cargo.
 
+**Note:** This study assumes that KCT Piers are not currently operational and that they will become operational only in a future time period.
+
 ### Step 2: Cargo Type Definitions
 
 **Objective:** Establish a standardized framework of five cargo type categories, derived from the Honolulu Harbor 2050 Master Plan.

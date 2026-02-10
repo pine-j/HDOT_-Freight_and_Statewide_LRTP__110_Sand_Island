@@ -56,6 +56,8 @@ Estimating Commodity Flows for Transportation Planning
 | **4. Data Processing & Pier Distribution** | FAF 5.7.1 + Steps 1–3 | Filter → Aggregate → Distribute to piers |
 | **5. SICT Calibration** | Actual port wharfage data | Scale FAF to match actuals → 2 output scenarios |
 
+**Note:** This study assumes that KCT Piers are not currently operational and that they will become operational only in a future time period.
+
 ### Step 1: Pier Operations Data Collection
 
 - **Source:** Honolulu Harbor 2050 Master Plan (manual extraction)
